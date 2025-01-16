@@ -4,19 +4,20 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using Directory = System.IO.Directory;
 
-namespace ImageDownloader;
+namespace LillioDownload;
 
 public class Program
 {
-    // Define the target directory
-    private const string TargetDirectory = @"C:\temp\rory\";
-
     public static async Task Main()
     {
         try
         {
+            // build target directory ~/Pictures/Lillio
+            var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var targetDirectory = Path.Combine(homeDirectory, "Pictures", "Lillio");
+
             // Ensure the target directory exists
-            Directory.CreateDirectory(TargetDirectory);
+            Directory.CreateDirectory(targetDirectory);
 
             // Read and parse the JSON file
             var images = await ReadJsonAsync("images.json");
@@ -39,14 +40,11 @@ public class Program
                 var baseFilename = imageDate.ToString("yyyy-MM-dd");
                 var filename = $"{baseFilename}";
 
-                if (filenameCounts.ContainsKey(baseFilename))
+                // ensure date name is unique
+                if (!filenameCounts.TryAdd(baseFilename, 1))
                 {
                     filenameCounts[baseFilename]++;
                     filename = $"{baseFilename} ({filenameCounts[baseFilename]})";
-                }
-                else
-                {
-                    filenameCounts[baseFilename] = 1;
                 }
 
                 // Determine file extension from URL
@@ -56,7 +54,7 @@ public class Program
                     extension = ".jpg"; // Default to .jpg if extension is missing
                 }
 
-                var filePath = Path.Combine(TargetDirectory, $"{filename}{extension}");
+                var filePath = Path.Combine(targetDirectory, $"{filename}{extension}");
 
                 // Download the image
                 Console.WriteLine($"Downloading {image.Link} to {filePath}");
@@ -83,15 +81,20 @@ public class Program
     private static async Task<List<ImageInfo>> ReadJsonAsync(string filePath)
     {
         if (!File.Exists(filePath))
+        {
             throw new FileNotFoundException($"JSON file not found at path: {filePath}");
+        }
 
         await using var fs = File.OpenRead(filePath);
         var data = await JsonSerializer.DeserializeAsync<List<ImageInfo>>(fs, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         });
+
         if (data is null)
+        {
             throw new NullReferenceException($"JSON data is null");
+        }
 
         return data;
     }
@@ -100,7 +103,7 @@ public class Program
     private static bool TryParseDate(string dateStr, out DateTime date)
     {
         // Define possible date formats
-        string[] formats = { "M/d/yy", "M/d/yyyy", "MM/dd/yy", "MM/dd/yyyy" };
+        string[] formats = ["M/d/yy", "M/d/yyyy", "MM/dd/yy", "MM/dd/yyyy"];
         return DateTime.TryParseExact(dateStr, formats, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date);
     }
 
@@ -138,7 +141,7 @@ public class Program
 [UsedImplicitly]
 public class ImageInfo
 {
-    public string Date { get; set; }
-    public string Title { get; set; }
-    public string Link { get; set; }
+    public required string Date { get; set; }
+    public required string Title { get; set; }
+    public required string Link { get; set; }
 }
